@@ -7,7 +7,7 @@ import os
 from torch.optim import Adam
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 import argparse
-from models.node_mixup import NodeMixup
+from models.node_mixup import Mixup
 from util.ops_io import get_pyg_dataset
 from util.ops_ev import get_evaluation_results
 from util.ops_al import Mixer, Cross_entropy_loss, sharpen
@@ -136,7 +136,7 @@ if __name__ == '__main__':
         labels = data.y
 
         # create the model and optimizer
-        model = NodeMixup(args)
+        model = Mixup(args)
         optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         
         if args.cuda:

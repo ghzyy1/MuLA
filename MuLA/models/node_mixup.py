@@ -3,10 +3,10 @@ import torch.nn as nn
 from util.ops_al import get_basic_model
 
 
-class NodeMixup(nn.Module):
+class Mixup(nn.Module):
 
     def __init__(self, args):
-        super(NodeMixup, self).__init__()
+        super(Mixup, self).__init__()
         self.model = get_basic_model(args)
 
     def forward(self, X, A, mixup_dict=None):
