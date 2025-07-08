@@ -1,0 +1,158 @@
+import torch
+import random
+import numpy as np
+import os.path as osp
+import scipy.sparse as sp
+from torch_geometric.data import Data
+from typing import Optional, Callable
+from torch_geometric.data import InMemoryDataset, download_url
+from torch_geometric.utils import remove_self_loops, to_undirected
+
+
+class CitationFull(InMemoryDataset):
+    r"""The full citation network datasets from the
+    `"Deep Gaussian Embedding of Graphs: Unsupervised Inductive Learning via
+    Ranking" <https://arxiv.org/abs/1707.03815>`_ paper.
+    Nodes represent documents and edges represent citation links.
+    Datasets include `citeseer`, `cora`, `cora_ml`, `dblp`, `pubmed`.
+
+    Args:
+        root (string): Root directory where the dataset should be saved.
+        name (string): The name of the dataset (:obj:`"Cora"`, :obj:`"Cora_ML"`
+            :obj:`"CiteSeer"`, :obj:`"DBLP"`, :obj:`"PubMed"`).
+        transform (callable, optional): A function/transform that takes in an
+            :obj:`torch_geometric.data.Data` object and returns a transformed
+            version. The data object will be transformed before every access.
+            (default: :obj:`None`)
+        pre_transform (callable, optional): A function/transform that takes in
+            an :obj:`torch_geometric.data.Data` object and returns a
+            transformed version. The data object will be transformed before
+            being saved to disk. (default: :obj:`None`)
+    """
+
+    url = 'https://github.com/abojchevski/graph2gauss/raw/master/data/{}.npz'
+
+    def __init__(self, root: str, name: str,
+                 transform: Optional[Callable] = None, pre_transform: Optional[Callable] = None):
+        self.name = name.lower()
+        assert self.name in ['cora_full', 'cora_ml', 'dblp']
+        super().__init__(root, transform, pre_transform)
+        self.data, self.slices = torch.load(self.processed_paths[0])
+
+    @property
+    def raw_dir(self) -> str:
+        if self.name == 'cora_full':
+            return osp.join(self.root, 'Cora_Full', 'raw')
+        elif self.name == 'cora_ml':
+            return osp.join(self.root, 'Cora_ML', 'raw')
+        elif self.name == 'dblp':
+            return osp.join(self.root, 'DBLP', 'raw')
+        else:
+            return osp.join(self.root, self.name, 'raw')
+
+    @property
+    def processed_dir(self) -> str:
+        if self.name == 'cora_full':
+            return osp.join(self.root, 'Cora_Full', 'processed')
+        elif self.name == 'cora_ml':
+            return osp.join(self.root, 'Cora_ML', 'processed')
+        elif self.name == 'dblp':
+            return osp.join(self.root, 'DBLP', 'processed')
+        else:
+            return osp.join(self.root, self.name, 'processed')
+
+    @property
+    def raw_file_names(self) -> str:
+        return f'{self.name}.npz'
+
+    @property
+    def processed_file_names(self) -> str:
+        return 'data.pt'
+
+    def download(self):
+        download_url(self.url.format(self.name), self.raw_dir)
+
+    def process(self):
+        data = read_citation_full_data(self.raw_dir, self.name)
+        data = data if self.pre_transform is None else self.pre_transform(data)
+        data, slices = self.collate([data])
+        torch.save((data, slices), self.processed_paths[0])
+
+    def __repr__(self) -> str:
+        return f'{self.name.capitalize()}Full()'
+
+
+def read_citation_full_data(folder, prefix):
+    file_path = osp.join(folder,  '{}.{}'.format(prefix.lower(), 'npz'))
+
+    with np.load(file_path, allow_pickle=True) as loader:
+        loader = dict(loader)
+
+        x = sp.csr_matrix((loader['attr_data'], loader['attr_indices'],
+                           loader['attr_indptr']), shape=loader['attr_shape'])
+        x = torch.Tensor(x.todense()).to(torch.float)
+        y = torch.Tensor(loader.get('labels')).long()
+
+        # obtain the train data
+        counter = []
+        for i in range(len(set(loader.get('labels')))):
+            counter.append(20)
+        y_list = loader.get('labels')
+        train_list = []
+        for i in range(len(y_list)):
+            if counter[y_list[i]] != 0:
+                train_list.append(i)
+                counter[y_list[i]] = counter[y_list[i]] - 1
+            if max(counter) == 0:
+                break
+
+        # obtain the validation data
+        random_list = random.sample(range(0, y.size(0)), y.size(0))
+        curr_idx = 0
+        val_list = []
+        for i in range(len(random_list)):
+            curr_idx = i
+            if random_list[i] in train_list:
+                continue
+            else:
+                val_list.append(random_list[i])
+            if len(val_list) == 500:
+                break
+        # obtain the test data
+        test_list = []
+        for i in range(curr_idx+1, len(random_list)):
+            if random_list[i] in train_list:
+                continue
+            else:
+                test_list.append(random_list[i])
+            if len(test_list) == 1000:
+                break
+
+        # obtain the train/val/test mask
+        train_index = torch.Tensor(train_list).long()
+        val_index = torch.Tensor(val_list).long()
+        test_index = torch.Tensor(test_list).long()
+        train_mask = sample_mask(train_index, num_nodes=y.size(0))
+        val_mask = sample_mask(val_index, num_nodes=y.size(0))
+        test_mask = sample_mask(test_index, num_nodes=y.size(0))
+
+        # obtain the adjacency matrix
+        # edge_index = create_edge_index(loader, y.size(0))
+        adj = sp.csr_matrix((loader['adj_data'], loader['adj_indices'],
+                             loader['adj_indptr']), loader['adj_shape']).tocoo()
+        edge_index = torch.tensor([adj.row, adj.col], dtype=torch.long)
+        edge_index, _ = remove_self_loops(edge_index)
+        edge_index = to_undirected(edge_index, x.size(0))  # Internal coalesce.
+
+        data = Data(x=x, edge_index=edge_index, y=y)
+        data.train_mask = train_mask
+        data.val_mask = val_mask
+        data.test_mask = test_mask
+
+        return data
+
+
+def sample_mask(index, num_nodes):
+    mask = torch.zeros((num_nodes, ), dtype=torch.uint8)
+    mask[index] = 1
+    return mask
