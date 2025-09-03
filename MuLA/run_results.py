@@ -42,8 +42,8 @@ def test(args,features, model, data, mixup_dict):
         logits_list.append(logits)
     stacked_tensors = torch.stack(logits_list)
     average_tensor = torch.mean(stacked_tensors, dim=0)
-    pred = average_tensor[data.val_mask].max(1)[1].cpu().numpy()
-    gold = data.y[data.val_mask].cpu().numpy()
+    pred = average_tensor[data.test_mask].max(1)[1].cpu().numpy()
+    gold = data.y[data.test_mask].cpu().numpy()
     ACC, MaP, MaR, MaF, MiF = get_evaluation_results(gold, pred)
     return ACC, MaP, MaR, MaF, MiF
 
