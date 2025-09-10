@@ -117,7 +117,6 @@ if __name__ == '__main__':
     all_MaF = []
     all_MiF = []
     all_Time = []
-    logits_list = []
 
     for i in range(args.num_repeat):
         print("################ Current repeat: ", i + 1, "  ################")
@@ -192,7 +191,6 @@ if __name__ == '__main__':
             for Tensor in outputgh:
                
                 logits, eq_mixup_logits, neq_mixup_logits = model(Tensor, data.edge_index, mixup_dict)
-                logits_list.append(logits)
    
                 loss_2 += Cross_entropy_loss(logits, labels, data.train_mask)
                 if use_mixup:
