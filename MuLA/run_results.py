@@ -208,8 +208,6 @@ if __name__ == '__main__':
             output_list.append(output111_log_softmax)
 
             loss_consis = consis_loss(output_list, args.tem, args.lam)
-    
-            loss_2 = 0.
 
             if use_mixup:
                 y = logits.softmax(-1).detach()
