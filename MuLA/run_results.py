@@ -60,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_concat", type=int, default=1)
     parser.add_argument("--samples", type=int, default=4)
     parser.add_argument('--epochs', type=int, default=2000, help='Number of epochs to train.')
-    parser.add_argument('--patience', type=int, default=10000, help='Patience')
+    parser.add_argument('--patience', type=int, default=100, help='Patience')
     parser.add_argument('--save_patience', type=int, default=10,
                         help='the frequency about saving the training result in the finetune stage')
     parser.add_argument('--em_dim_1', type=int, default=16, help='Dimension of the first encoder layer.')
