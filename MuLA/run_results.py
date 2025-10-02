@@ -205,7 +205,7 @@ if __name__ == '__main__':
             for Tensor in outputgh:
                 output111,_,_ = model(Tensor, data.edge_index)
                 output111_log_softmax = torch.log_softmax(output111, dim=-1)
-            output_list.append(output111_log_softmax)
+                output_list.append(output111_log_softmax)
 
             loss_consis = consis_loss(output_list, args.tem, args.lam)
 
